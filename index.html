@@ -1693,6 +1693,9 @@ function toggleDetail(id){
 
 // ── REPORT HTML ───────────────────────────────────────────────────────────────
 function buildReportHTML(r){
+  console.log('buildReportHTML called with:', r?r.lodge:'null', r?r.week_of:'null');
+  console.log('bar_sales:', r&&r.bar_sales?r.bar_sales.length:'missing');
+  console.log('staff_complimentary:', r&&r.staff_complimentary?'present':'missing/null');
   const barSales=r.bar_sales||[];
   const barStock=r.bar_stock||[];
   const restSales=r.restaurant_sales||[];
