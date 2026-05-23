@@ -752,22 +752,24 @@ function getEffectiveCategory(tabCategory){
 }
 
 function getGroups(category){
-  // If lodge has specific items for this category, show ONLY lodge-specific groups
+  // STRICT category matching — Bar Sales never shows Bar items and vice versa
   if(currentLodge&&currentLodge!=='All Lodges'){
-    const lodgeGroups=itemMaster.filter(i=>i.lodge===currentLodge&&i.category===category).map(i=>i.grp);
+    const lodgeGroups=itemMaster
+      .filter(i=>i.lodge===currentLodge&&i.category===category)
+      .map(i=>i.grp);
     if(lodgeGroups.length>0) return [...new Set(lodgeGroups)];
   }
-  // Fall back to All Lodges items
-  return [...new Set(itemMaster.filter(i=>i.category===category).map(i=>i.grp))];
+  // Fall back to All Lodges — same category only
+  return [...new Set(itemMaster.filter(i=>i.lodge==='All Lodges'&&i.category===category).map(i=>i.grp))];
 }
 function getItems(category,grp){
-  // If lodge has specific items for this category+group, show ONLY lodge-specific items
+  // STRICT category matching — never mix Bar and Bar Sales
   if(currentLodge&&currentLodge!=='All Lodges'){
     const lodgeItems=itemMaster.filter(i=>i.lodge===currentLodge&&i.category===category&&i.grp===grp);
     if(lodgeItems.length>0) return lodgeItems;
   }
-  // Fall back to All Lodges items
-  return itemMaster.filter(i=>i.category===category&&i.grp===grp);
+  // Fall back to All Lodges — same category only
+  return itemMaster.filter(i=>i.lodge==='All Lodges'&&i.category===category&&i.grp===grp);
 }
 
 function styleSelect(s){
@@ -984,10 +986,10 @@ function buildRow(tr,name){
       tdEl(makeInp('text','Remarks'),'wide'),
       delTd
     );
-    // Use 'Bar Sales' category for lodge-specific items, 'Bar' for generic
-    const barSalesCat=(currentLodge&&currentLodge!=='All Lodges'&&
-      itemMaster.some(i=>i.lodge===currentLodge&&i.category==='Bar Sales'))?'Bar Sales':'Bar';
-    wireDropdowns(groupTd,itemTd,unitInp,null,barSalesCat);
+    // Bar Sales tab ALWAYS uses 'Bar Sales' category
+    // Bar Stock tab uses 'Bar' category
+    // This ensures strict separation
+    wireDropdowns(groupTd,itemTd,unitInp,null,'Bar Sales');
 
   } else if(name==='bar-stock'){
     // Fields: group | item | unit | par | cost | opening | received | issued | exp | actual | variance | par-status | val-open | val-issued | val-close | val-var
@@ -2554,95 +2556,31 @@ function getEffectiveCategory(tabCategory){
 }
 
 function getGroups(category){
-  // If lodge has specific items for this category, show ONLY lodge-specific groups
+  // STRICT category matching — Bar Sales never shows Bar items and vice versa
   if(currentLodge&&currentLodge!=='All Lodges'){
-    const lodgeGroups=itemMaster.filter(i=>i.lodge===currentLodge&&i.category===category).map(i=>i.grp);
+    const lodgeGroups=itemMaster
+      .filter(i=>i.lodge===currentLodge&&i.category===category)
+      .map(i=>i.grp);
     if(lodgeGroups.length>0) return [...new Set(lodgeGroups)];
   }
-  // Fall back to All Lodges items
-  return [...new Set(itemMaster.filter(i=>i.category===category).map(i=>i.grp))];
+  // Fall back to All Lodges — same category only
+  return [...new Set(itemMaster.filter(i=>i.lodge==='All Lodges'&&i.category===category).map(i=>i.grp))];
 }
 function getItems(category,grp){
-  // If lodge has specific items for this category+group, show ONLY lodge-specific items
+  // STRICT category matching — never mix Bar and Bar Sales
   if(currentLodge&&currentLodge!=='All Lodges'){
     const lodgeItems=itemMaster.filter(i=>i.lodge===currentLodge&&i.category===category&&i.grp===grp);
     if(lodgeItems.length>0) return lodgeItems;
   }
-  // Fall back to All Lodges items
-  return itemMaster.filter(i=>i.category===category&&i.grp===grp);
+  // Fall back to All Lodges — same category only
+  return itemMaster.filter(i=>i.lodge==='All Lodges'&&i.category===category&&i.grp===grp);
 }
 
 function styleSelect(s){
   s.style.cssText='width:100%;padding:6px 4px;border:1px solid transparent;border-radius:4px;font-family:Jost,sans-serif;font-size:12px;color:var(--dark);background:transparent;cursor:pointer;';
 }
 
-function wireDropdowns(groupTd, itemTd, unitInp, parInp, category){
-  let itemData={};
-  let groupTS=null, itemTS=null;
 
-  // ── GROUP SELECT ──────────────────────────────────────────────
-  const gSel=document.createElement('select');
-  const blankG=document.createElement('option');blankG.value='';blankG.textContent='Group...';gSel.appendChild(blankG);
-  getGroups(category).forEach(g=>{
-    const op=document.createElement('option');op.value=g;op.textContent=g;gSel.appendChild(op);
-  });
-  while(groupTd.firstChild)groupTd.removeChild(groupTd.firstChild);
-  groupTd.appendChild(gSel);
-
-  // ── ITEM SELECT ───────────────────────────────────────────────
-  const iSel=document.createElement('select');
-  const blankI=document.createElement('option');blankI.value='';blankI.textContent='Select group first...';iSel.appendChild(blankI);
-  while(itemTd.firstChild)itemTd.removeChild(itemTd.firstChild);
-  itemTd.appendChild(iSel);
-
-  // ── INIT TOM SELECT ───────────────────────────────────────────
-  groupTS=new TomSelect(gSel,{
-    placeholder:'Group...',allowEmptyOption:true,
-    onInitialize:function(){this.control.style.cursor='pointer';},
-    onChange:function(val){
-      if(!val){itemTS&&itemTS.clear();itemTS&&itemTS.clearOptions();return;}
-      rebuildItemOptions(val);
-    }
-  });
-
-  itemTS=new TomSelect(iSel,{
-    placeholder:'Type to search or select...',allowEmptyOption:true,
-    create:false,
-    onChange:function(val){
-      const props=itemData[val]||{};
-      if(unitInp&&props.unit)unitInp.value=props.unit;
-      if(parInp&&props.par)parInp.value=props.par;
-      if(props.price&&props.price!==0){
-        const tr=gSel.closest('tr');
-        const priceInp=tr?tr.querySelector('.price'):null;
-        if(priceInp){priceInp.value=props.price;priceInp.dispatchEvent(new Event('input'));}
-      }
-      // Other
-      const existing=itemTd.querySelector('.other-inp');
-      if(val==='Other'){
-        if(!existing){
-          const inp=document.createElement('input');
-          inp.type='text';inp.placeholder='Type item name...';inp.className='other-inp';
-          inp.style.cssText='width:100%;margin-top:3px;padding:4px 6px;border:1px solid var(--border);border-radius:3px;font-size:12px;font-family:Jost,sans-serif';
-          itemTd.appendChild(inp);
-        }
-      } else {if(existing)existing.remove();}
-    }
-  });
-
-  function rebuildItemOptions(grp){
-    itemData={};
-    itemTS.clear();itemTS.clearOptions();
-    const opts=[];
-    getItems(category,grp).forEach(item=>{
-      const label=item.item_name+(item.selling_price>0?' — UGX '+item.selling_price.toLocaleString():'');
-      opts.push({value:item.item_name,text:label});
-      itemData[item.item_name]={unit:item.unit,par:item.par_level,price:item.selling_price||0};
-    });
-    opts.push({value:'Other',text:'+ Other (specify)'});
-    itemTS.addOptions(opts);
-  }
-}
 
 // ── LODGE SELECTOR ────────────────────────────────────────────────────────────
 function showLodgeSelector(){
@@ -2786,10 +2724,10 @@ function buildRow(tr,name){
       tdEl(makeInp('text','Remarks'),'wide'),
       delTd
     );
-    // Use 'Bar Sales' category for lodge-specific items, 'Bar' for generic
-    const barSalesCat=(currentLodge&&currentLodge!=='All Lodges'&&
-      itemMaster.some(i=>i.lodge===currentLodge&&i.category==='Bar Sales'))?'Bar Sales':'Bar';
-    wireDropdowns(groupTd,itemTd,unitInp,null,barSalesCat);
+    // Bar Sales tab ALWAYS uses 'Bar Sales' category
+    // Bar Stock tab uses 'Bar' category
+    // This ensures strict separation
+    wireDropdowns(groupTd,itemTd,unitInp,null,'Bar Sales');
 
   } else if(name==='bar-stock'){
     // Fields: group | item | unit | par | cost | opening | received | issued | exp | actual | variance | par-status | val-open | val-issued | val-close | val-var
