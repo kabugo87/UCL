@@ -1674,7 +1674,12 @@ function openReport(r){
     const aBtn=document.createElement('button');aBtn.className='btn-action btn-amber';aBtn.textContent=r.archived?'Unarchive':'Archive';aBtn.onclick=()=>{archiveReport(r.id,!r.archived);closeModal();};actEl.appendChild(aBtn);
     const dBtn=document.createElement('button');dBtn.className='btn-action btn-danger';dBtn.textContent='Delete';dBtn.onclick=()=>promptDelete(r.id);actEl.appendChild(dBtn);
   }
-  document.getElementById('modal-body').innerHTML=buildReportHTML(r);
+  try{
+    document.getElementById('modal-body').innerHTML=buildReportHTML(r);
+  }catch(err){
+    console.error('buildReportHTML error:',err);
+    document.getElementById('modal-body').innerHTML='<div style="padding:20px;color:red;font-family:monospace">Error: '+err.message+'<br><br>'+err.stack+'</div>';
+  }
   document.getElementById('report-modal').classList.add('open');
 }
 function closeModal(){document.getElementById('report-modal').classList.remove('open');currentReport=null;}
@@ -1699,8 +1704,8 @@ function buildReportHTML(r){
   const security=r.security_log||[];
   const maintenance=r.maintenance_log||[];
   const incidents=r.incidents||[];
-  const staffComp=r.staff_complimentary||[];
-  const trainingRows=r.training_log||[];
+  const staffComp=(r.staff_complimentary&&Array.isArray(r.staff_complimentary))?r.staff_complimentary:[];
+  const trainingRows=(r.training_log&&Array.isArray(r.training_log))?r.training_log:[];
   let staffCompValue=0,staffCompCollected=0;
   staffComp.forEach(s=>{
     staffCompValue+=parseFloat((s.standard_total||'').replace('UGX','').replace(/,/g,''))||0;
@@ -2016,7 +2021,7 @@ function buildReportHTML(r){
       <div id="d-staff-comp" style="display:none">
         <table class="recon-table">
           <thead><tr><th>Date</th><th>Name</th><th>Category</th><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Std Value</th><th style="text-align:right">Paid</th><th style="text-align:right">Variance</th><th>Authorised By</th></tr></thead>
-          <tbody>${staffComp.filter(s=>s.person_name||s.item).map(s=>'<tr><td>'+s.date+'</td><td>'+s.person_name+'</td><td>'+s.category+'</td><td>'+s.item+'</td><td style="text-align:right">'+s.quantity+'</td><td style="text-align:right">'+s.standard_total+'</td><td style="text-align:right">'+fmtUGX(n(s.amount_paid))+'</td><td style="text-align:right;color:'+(n(s.amount_paid)<parseFloat((s.standard_total||'0').replace('UGX','').replace(/,/g,''))?'var(--error)':'var(--success)')+'">'+s.variance+'</td><td>'+s.authorised_by+'</td></tr>').join('')}</tbody>
+          <tbody>${(staffComp||[]).filter(s=>s.person_name||s.item).map(s=>{const paid=n(s.amount_paid||0);const stdVal=parseFloat((s.standard_total||'0').replace('UGX','').replace(/,/g,''))||0;return'<tr><td>'+(s.date||'')+'</td><td>'+(s.person_name||'')+'</td><td>'+(s.category||'')+'</td><td>'+(s.item||'')+'</td><td style="text-align:right">'+(s.quantity||'')+'</td><td style="text-align:right">'+(s.standard_total||'—')+'</td><td style="text-align:right">'+fmtUGX(paid)+'</td><td style="text-align:right;color:'+(paid<stdVal?'var(--error)':'var(--success)')+'">'+fmtUGX(paid-stdVal)+'</td><td>'+(s.authorised_by||'')+'</td></tr>';}).join('')}</tbody>
           <tfoot><tr><td colspan="5">TOTAL</td><td style="text-align:right">${fmtUGX(staffCompValue)}</td><td style="text-align:right">${fmtUGX(staffCompCollected)}</td><td style="text-align:right;color:var(--error)">${fmtUGX(staffCompCollected-staffCompValue)}</td><td></td></tr></tfoot>
         </table>
       </div>
@@ -2030,7 +2035,7 @@ function buildReportHTML(r){
       <div id="d-training" style="display:none">
         <table class="recon-table">
           <thead><tr><th>Date</th><th>Topic</th><th>Trainer</th><th>Duration</th><th>Attendees</th><th>No.</th><th>Follow-up?</th></tr></thead>
-          <tbody>${trainingRows.filter(t=>t.topic).map(t=>'<tr><td>'+t.date+'</td><td>'+t.topic+'</td><td>'+t.trainer+'</td><td>'+t.duration_hours+' hrs</td><td>'+t.attendees+'</td><td>'+t.attendee_count+'</td><td>'+t.followup_required+'</td></tr>').join('')}</tbody>
+          <tbody>${(trainingRows||[]).filter(t=>t&&t.topic).map(t=>'<tr><td>'+(t.date||'')+'</td><td>'+(t.topic||'')+'</td><td>'+(t.trainer||'')+'</td><td>'+(t.duration_hours||'0')+' hrs</td><td>'+(t.attendees||'')+'</td><td>'+(t.attendee_count||'0')+'</td><td>'+(t.followup_required||'')+'</td></tr>').join('')}</tbody>
         </table>
       </div>
     </div>`:'<div class="notice green">✓ No training sessions recorded this week.</div>'}
