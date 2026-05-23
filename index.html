@@ -2247,18 +2247,6 @@ async function generateConsolidated(){
   } else {
     html+='<div style="background:#f0faf4;border:1.5px solid #a8d5b5;border-radius:var(--radius);padding:12px 16px;font-size:13px;color:#2e7d52;margin-bottom:16px;">✓ No incidents recorded across any lodge this week.</div>';
   }
-
-  html+='<div style="margin-top:8px;display:flex;gap:12px;"><button onclick="window.print()" style="padding:9px 20px;background:var(--forest);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Print / Download</button></div>';
-  html+='</div>';
-
-  // Show in modal
-  document.getElementById('modal-title').textContent='Consolidated Report — Week of '+fmtDate(weekOf);
-  document.getElementById('modal-meta').textContent='Generated '+new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('modal-actions').innerHTML='';
-  document.getElementById('confirm-delete').style.display='none';
-  document.getElementById('edit-section').style.display='none';
-  document.getElementById('modal-body').innerHTML=html;
-  document.getElementById('report-modal').classList.add('open');
 }
 
 
@@ -2452,13 +2440,56 @@ async function generateMonthly(){
       <button onclick="window.print()" style="padding:9px 20px;background:var(--forest);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Print / Download</button>
     </div>`;
 
-  document.getElementById('modal-title').textContent='Monthly Report — Uganda Cultural Lodges | '+monthName;
+  
+  // Operational sections
+  const allIncM=[];data.forEach(r=>{(r.incidents||[]).filter(i=>i.description&&i.description!=='NONE').forEach(i=>{allIncM.push({...i,lodge:r.lodge,week:r.week_of});});});
+  const allTrainM=[];data.forEach(r=>{(r.training_log||[]).filter(t=>t&&t.topic).forEach(t=>{allTrainM.push({...t,lodge:r.lodge});});});
+  const totalTrainedM=allTrainM.reduce((s,t)=>s+n(t.attendee_count||0),0);
+  const allMaintM=[];data.forEach(r=>{(r.maintenance_log||[]).filter(m=>m.item).forEach(m=>{allMaintM.push({...m,lodge:r.lodge});});});
+  const openMaintM=allMaintM.filter(m=>m.status==='Open'||m.status==='In Progress');
+  const allCompM=[];let totCompVal=0,totCompColl=0;
+  data.forEach(r=>{(r.staff_complimentary||[]).filter(s=>s.person_name||s.item).forEach(s=>{
+    totCompVal+=parseFloat((s.standard_total||'0').replace('UGX','').replace(/,/g,''))||0;
+    totCompColl+=n(s.amount_paid||0);allCompM.push({...s,lodge:r.lodge});
+  });});
+
+  html+=`<div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--forest);margin:20px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--border)">Operational Summary</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px;">
+    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:6px;padding:14px;border-left:4px solid ${allIncM.filter(i=>i.status==='Open').length>0?'var(--error)':'var(--success)'}">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Incidents</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700">${allIncM.length}</div>
+      <div style="font-size:12px;color:var(--muted)">${allIncM.filter(i=>i.status==='Open').length} open | ${allIncM.filter(i=>i.escalated==='Yes').length} escalated</div>
+    </div>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:6px;padding:14px;border-left:4px solid ${allTrainM.length>0?'var(--success)':'var(--amber)'}">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Training</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700">${allTrainM.length} sessions</div>
+      <div style="font-size:12px;color:var(--muted)">${totalTrainedM} staff trained</div>
+    </div>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:6px;padding:14px;border-left:4px solid ${openMaintM.length>0?'var(--amber)':'var(--success)'}">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Maintenance</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700">${allMaintM.length} logged</div>
+      <div style="font-size:12px;color:var(--muted)">${openMaintM.length} open/in progress</div>
+    </div>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:6px;padding:14px;border-left:4px solid ${totCompVal>0?'var(--amber)':'var(--success)'}">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:4px">Complimentary</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700">${fmtUGX(totCompVal)}</div>
+      <div style="font-size:12px;color:var(--muted)">Collected: ${fmtUGX(totCompColl)}</div>
+    </div>
+  </div>
+  ${allIncM.length>0?`<div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:var(--forest);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px">Incidents This Month</div><table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;margin-bottom:16px;"><thead><tr style="background:#f0ede6"><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Week</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Lodge</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Category</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Description</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Status</th></tr></thead><tbody>${allIncM.map(i=>'<tr><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+fmtDate(i.week)+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0;font-weight:600">'+i.lodge+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+i.category+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+i.description+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0"><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:'+(i.status==='Open'?'#fde8e8;color:#c0392b':'#e3f2e8;color:#2e7d52')+'">'+i.status+'</span></td></tr>').join('')}</tbody></table>`:'<div style="background:#f0faf4;border:1.5px solid #a8d5b5;border-radius:6px;padding:10px 14px;font-size:13px;color:#2e7d52;margin-bottom:16px">✓ No incidents this month.</div>'}
+  ${allTrainM.length>0?`<div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:var(--forest);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px">Training Log This Month</div><table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;margin-bottom:16px;"><thead><tr style="background:#f0ede6"><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Date</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Lodge</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Topic</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Trainer</th><th style="padding:8px 12px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Attended</th></tr></thead><tbody>${allTrainM.map(t=>'<tr><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+t.date+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0;font-weight:600">'+t.lodge+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+t.topic+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+t.trainer+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0;text-align:right">'+(t.attendee_count||0)+'</td></tr>').join('')}</tbody><tfoot><tr style="background:#f0ede6;font-weight:700"><td colspan="4" style="padding:8px 12px">TOTAL STAFF TRAINED</td><td style="padding:8px 12px;text-align:right">${totalTrainedM}</td></tr></tfoot></table>`:'<div style="background:#fff8ed;border:1.5px solid #e8c87a;border-radius:6px;padding:10px 14px;font-size:13px;color:#7a5a10;margin-bottom:16px">⚠ No training sessions recorded this month.</div>'}
+  ${openMaintM.length>0?`<div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:var(--forest);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px">Open Maintenance Items</div><table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;margin-bottom:16px;"><thead><tr style="background:#f0ede6"><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Lodge</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Item</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Issue</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Status</th></tr></thead><tbody>${openMaintM.map(m=>'<tr><td style="padding:8px 12px;border-bottom:1px solid #ede9e0;font-weight:600">'+m.lodge+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+m.item+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+m.issue+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0"><span style="padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:'+(m.status==='Open'?'#fde8e8;color:#c0392b':'#fff3cd;color:#856404')+'">'+m.status+'</span></td></tr>').join('')}</tbody></table>`:''}
+  ${allCompM.length>0?`<div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:var(--forest);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px">Staff &amp; Complimentary This Month</div><table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;margin-bottom:16px;"><thead><tr style="background:#f0ede6"><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Lodge</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Name</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Category</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Item</th><th style="padding:8px 12px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Std Value</th><th style="padding:8px 12px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Paid</th><th style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border)">Authorised</th></tr></thead><tbody>${allCompM.map(s=>'<tr><td style="padding:8px 12px;border-bottom:1px solid #ede9e0;font-weight:600">'+s.lodge+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+(s.person_name||'')+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+(s.category||'')+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+(s.item||'')+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0;text-align:right">'+(s.standard_total||'—')+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0;text-align:right">'+fmtUGX(n(s.amount_paid||0))+'</td><td style="padding:8px 12px;border-bottom:1px solid #ede9e0">'+(s.authorised_by||'—')+'</td></tr>').join('')}</tbody><tfoot><tr style="background:#f0ede6;font-weight:700"><td colspan="4" style="padding:8px 12px">TOTAL</td><td style="padding:8px 12px;text-align:right">${fmtUGX(totCompVal)}</td><td style="padding:8px 12px;text-align:right">${fmtUGX(totCompColl)}</td><td></td></tr></tfoot></table>`:''}
+  <div style="margin-top:8px;display:flex;gap:12px;"><button onclick="window.print()" style="padding:9px 20px;background:var(--forest);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Print / Download</button></div>`;
+
+document.getElementById('modal-title').textContent='Monthly Report — Uganda Cultural Lodges | '+monthName;
   document.getElementById('modal-meta').textContent='Administrator view only | Generated '+fmtDT(new Date().toISOString());
   document.getElementById('modal-actions').innerHTML='';
   document.getElementById('confirm-delete').style.display='none';
   document.getElementById('edit-section').style.display='none';
   document.getElementById('modal-body').innerHTML=html;
   document.getElementById('report-modal').classList.add('open');
+
 }
 
 checkSession();
