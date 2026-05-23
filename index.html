@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Uganda Cultural Lodges — Weekly Reporting</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Jost:wght@300;400;500;600&display=swap');
 :root{--forest:#1a3a2a;--gold:#c8922a;--sand:#f5f0e8;--white:#ffffff;--dark:#111a14;--muted:#6b7c6e;--border:#d4cfc5;--error:#c0392b;--success:#2e7d52;--amber:#d4820a;--radius:6px;}
@@ -168,6 +170,16 @@ header{background:var(--forest);padding:0 32px;height:60px;display:flex;align-it
 .save-status.err{color:var(--error);font-weight:500;}
 @media print{header,.tab-bar,.modal-actions,.modal-close,#submit-bar,.edit-section,.confirm-box,.section-title .toggle{display:none!important;}.modal-overlay{position:relative;padding:0;display:block;}.modal{box-shadow:none;padding:0;}.detail-section{display:block!important;}}
 @media(max-width:640px){header{padding:0 16px;}.content{padding:16px;}.tab{padding:10px 10px;font-size:12px;}.modal{padding:20px;}.lodge-selector-card{padding:32px 20px;}}
+.ts-wrapper{margin:0;min-width:120px;}.ts-control{min-height:30px;padding:4px 6px;border:1px solid transparent!important;border-radius:4px!important;background:transparent!important;font-family:'Jost',sans-serif!important;font-size:12px!important;box-shadow:none!important;cursor:pointer;}
+.ts-wrapper.focus .ts-control{border-color:var(--forest)!important;background:var(--white)!important;box-shadow:none!important;}
+.ts-control:hover{border-color:var(--border)!important;background:var(--white)!important;}
+.ts-dropdown{z-index:9999!important;border-color:var(--border)!important;border-radius:var(--radius)!important;box-shadow:0 4px 20px rgba(0,0,0,0.15)!important;font-family:'Jost',sans-serif!important;font-size:12px!important;}
+.ts-dropdown .option{padding:7px 12px!important;font-size:12px!important;}
+.ts-dropdown .option:hover,.ts-dropdown .option.active{background:var(--forest)!important;color:var(--white)!important;}
+.ts-dropdown-content{max-height:220px!important;}
+.ts-dropdown input{font-family:'Jost',sans-serif!important;font-size:12px!important;padding:6px 10px!important;border-bottom:1px solid var(--border)!important;}
+.ts-wrapper .ts-control .placeholder{color:var(--muted)!important;}
+.form-table .ts-wrapper{width:100%;}
 </style>
 </head>
 <body>
@@ -199,8 +211,8 @@ header{background:var(--forest);padding:0 32px;height:60px;display:flex;align-it
 <div id="app-screen" style="display:none">
   <header>
     <div class="header-left">
-      <img src="data:image/png;base64,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" alt="UCL"/>
-      <span>Uganda Cultural Lodges</span>
+      <img style="cursor:pointer" onclick="changeLodge()" src="data:image/png;base64,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" alt="UCL"/>
+      <span style="cursor:pointer" onclick="changeLodge()">Uganda Cultural Lodges</span>
       <span class="lodge-badge" onclick="changeLodge()" id="lodge-name-header"></span>
     </div>
     <div class="header-right">
@@ -477,56 +489,71 @@ function styleSelect(s){
 }
 
 function wireDropdowns(groupTd, itemTd, unitInp, parInp, category){
-  // Group select
+  let itemData={};
+  let groupTS=null, itemTS=null;
+
+  // ── GROUP SELECT ──────────────────────────────────────────────
   const gSel=document.createElement('select');
-  styleSelect(gSel);
-  [{value:'',text:'-- Group --'},...getGroups(category).map(g=>({value:g,text:g}))].forEach(o=>{
-    const op=document.createElement('option');op.value=o.value;op.textContent=o.text;gSel.appendChild(op);
+  const blankG=document.createElement('option');blankG.value='';blankG.textContent='Group...';gSel.appendChild(blankG);
+  getGroups(category).forEach(g=>{
+    const op=document.createElement('option');op.value=g;op.textContent=g;gSel.appendChild(op);
   });
-  // Item select
-  const iSel=document.createElement('select');
-  styleSelect(iSel);
-  const blankI=document.createElement('option');blankI.value='';blankI.textContent='-- Item --';iSel.appendChild(blankI);
-
-  gSel.onchange=function(){
-    while(iSel.firstChild)iSel.removeChild(iSel.firstChild);
-    const b=document.createElement('option');b.value='';b.textContent='-- Item --';iSel.appendChild(b);
-    if(!this.value)return;
-    getItems(category,this.value).forEach(item=>{
-      const op=document.createElement('option');
-      op.value=item.item_name;op.dataset.unit=item.unit;op.dataset.par=item.par_level;
-      op.dataset.price=item.selling_price||0;
-      op.textContent=item.item_name+(item.selling_price>0?' — UGX '+item.selling_price.toLocaleString():'');
-      iSel.appendChild(op);
-    });
-    const oth=document.createElement('option');oth.value='Other';oth.textContent='+ Other (specify)';iSel.appendChild(oth);
-  };
-
-  iSel.onchange=function(){
-    const sel=this.options[this.selectedIndex];
-    if(unitInp&&sel&&sel.dataset.unit)unitInp.value=sel.dataset.unit;
-    if(parInp&&sel&&sel.dataset.par)parInp.value=sel.dataset.par;
-    // Auto-fill selling price if available
-    if(sel&&sel.dataset.price&&sel.dataset.price!=='0'){
-      const priceInp=iSel.closest('tr')?iSel.closest('tr').querySelector('.price'):null;
-      if(priceInp)priceInp.value=sel.dataset.price;
-    }
-    // Other text input
-    const existing=itemTd.querySelector('.other-inp');
-    if(this.value==='Other'){
-      if(!existing){
-        const inp=document.createElement('input');
-        inp.type='text';inp.placeholder='Type name...';inp.className='other-inp';
-        inp.style.cssText='width:100%;margin-top:3px;padding:4px 6px;border:1px solid var(--border);border-radius:3px;font-size:12px;font-family:Jost,sans-serif';
-        itemTd.appendChild(inp);
-      }
-    } else {if(existing)existing.remove();}
-  };
-
   while(groupTd.firstChild)groupTd.removeChild(groupTd.firstChild);
   groupTd.appendChild(gSel);
+
+  // ── ITEM SELECT ───────────────────────────────────────────────
+  const iSel=document.createElement('select');
+  const blankI=document.createElement('option');blankI.value='';blankI.textContent='Select group first...';iSel.appendChild(blankI);
   while(itemTd.firstChild)itemTd.removeChild(itemTd.firstChild);
   itemTd.appendChild(iSel);
+
+  // ── INIT TOM SELECT ───────────────────────────────────────────
+  groupTS=new TomSelect(gSel,{
+    placeholder:'Group...',allowEmptyOption:true,
+    onInitialize:function(){this.control.style.cursor='pointer';},
+    onChange:function(val){
+      if(!val){itemTS&&itemTS.clear();itemTS&&itemTS.clearOptions();return;}
+      rebuildItemOptions(val);
+    }
+  });
+
+  itemTS=new TomSelect(iSel,{
+    placeholder:'Type to search or select...',allowEmptyOption:true,
+    create:false,
+    onChange:function(val){
+      const props=itemData[val]||{};
+      if(unitInp&&props.unit)unitInp.value=props.unit;
+      if(parInp&&props.par)parInp.value=props.par;
+      if(props.price&&props.price!==0){
+        const tr=gSel.closest('tr');
+        const priceInp=tr?tr.querySelector('.price'):null;
+        if(priceInp){priceInp.value=props.price;priceInp.dispatchEvent(new Event('input'));}
+      }
+      // Other
+      const existing=itemTd.querySelector('.other-inp');
+      if(val==='Other'){
+        if(!existing){
+          const inp=document.createElement('input');
+          inp.type='text';inp.placeholder='Type item name...';inp.className='other-inp';
+          inp.style.cssText='width:100%;margin-top:3px;padding:4px 6px;border:1px solid var(--border);border-radius:3px;font-size:12px;font-family:Jost,sans-serif';
+          itemTd.appendChild(inp);
+        }
+      } else {if(existing)existing.remove();}
+    }
+  });
+
+  function rebuildItemOptions(grp){
+    itemData={};
+    itemTS.clear();itemTS.clearOptions();
+    const opts=[];
+    getItems(category,grp).forEach(item=>{
+      const label=item.item_name+(item.selling_price>0?' — UGX '+item.selling_price.toLocaleString():'');
+      opts.push({value:item.item_name,text:label});
+      itemData[item.item_name]={unit:item.unit,par:item.par_level,price:item.selling_price||0};
+    });
+    opts.push({value:'Other',text:'+ Other (specify)'});
+    itemTS.addOptions(opts);
+  }
 }
 
 // ── LODGE SELECTOR ────────────────────────────────────────────────────────────
@@ -576,8 +603,15 @@ async function selectLodge(lodge){
   const mon=new Date(today);mon.setDate(diff);
   document.getElementById('week-of').value=mon.toISOString().split('T')[0];
   updateWeekLabel();
-  ['bar-sales','bar-stock','restaurant','room-sales','stores','kitchen','rooms','housekeeping','security','maintenance','incidents']
-    .forEach(t=>{document.getElementById('body-'+t).innerHTML='';addRow(t);});
+  const rowCounts={
+    'bar-sales':10,'bar-stock':10,'restaurant':10,'room-sales':5,
+    'stores':8,'kitchen':8,'rooms':5,'housekeeping':5,
+    'security':3,'maintenance':3,'incidents':3
+  };
+  Object.entries(rowCounts).forEach(([t,count])=>{
+    document.getElementById('body-'+t).innerHTML='';
+    for(let i=0;i<count;i++) addRow(t);
+  });
   switchTab(document.querySelector('.tab[data-tab="bar-sales"]'));
   loadDashboard();
 }
