@@ -429,7 +429,12 @@ function isAdmin(){return currentUser&&currentUser.email===ADMIN_EMAIL;}
 
 // ── ITEM MASTER ───────────────────────────────────────────────────────────────
 async function loadItemMaster(){
-  const {data,error}=await sb.from('item_master').select('*').eq('active',true).order('category').order('grp').order('item_name');
+  // Load both All Lodges items and lodge-specific items
+  const {data,error}=await sb.from('item_master')
+    .select('*')
+    .eq('active',true)
+    .in('lodge',['All Lodges', currentLodge||'All Lodges'])
+    .order('category').order('grp').order('item_name');
   if(!error&&data){itemMaster=data;}
 }
 
@@ -463,7 +468,9 @@ function wireDropdowns(groupTd, itemTd, unitInp, parInp, category){
     getItems(category,this.value).forEach(item=>{
       const op=document.createElement('option');
       op.value=item.item_name;op.dataset.unit=item.unit;op.dataset.par=item.par_level;
-      op.textContent=item.item_name;iSel.appendChild(op);
+      op.dataset.price=item.selling_price||0;
+      op.textContent=item.item_name+(item.selling_price>0?' — UGX '+item.selling_price.toLocaleString():'');
+      iSel.appendChild(op);
     });
     const oth=document.createElement('option');oth.value='Other';oth.textContent='+ Other (specify)';iSel.appendChild(oth);
   };
@@ -472,6 +479,11 @@ function wireDropdowns(groupTd, itemTd, unitInp, parInp, category){
     const sel=this.options[this.selectedIndex];
     if(unitInp&&sel&&sel.dataset.unit)unitInp.value=sel.dataset.unit;
     if(parInp&&sel&&sel.dataset.par)parInp.value=sel.dataset.par;
+    // Auto-fill selling price if available
+    if(sel&&sel.dataset.price&&sel.dataset.price!=='0'){
+      const priceInp=iSel.closest('tr')?iSel.closest('tr').querySelector('.price'):null;
+      if(priceInp)priceInp.value=sel.dataset.price;
+    }
     // Other text input
     const existing=itemTd.querySelector('.other-inp');
     if(this.value==='Other'){
