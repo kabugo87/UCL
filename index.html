@@ -1609,10 +1609,8 @@ async function loadDashboard(){
     (r.room_sales||[]).forEach(s=>{rev+=parseFloat((s.total_value||'').replace('UGX','').replace(/,/g,''))||0;});
     const tr=document.createElement('tr');
     const openBtn=document.createElement('button');
-    openBtn.textContent='Open';
-    openBtn.style.cssText='padding:6px 14px;background:var(--forest);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:Jost,sans-serif';
-    openBtn.onclick=()=>r.is_draft?openDraft(r):openReport(r);
-    if(r.is_draft){openBtn.textContent='Edit Draft';openBtn.style.background='var(--amber)';}
+    openBtn.textContent=r.is_draft?'Edit Draft':'Open';
+    openBtn.style.cssText='padding:6px 14px;background:'+(r.is_draft?'var(--amber)':'var(--forest)')+';color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:Jost,sans-serif';
     tr.innerHTML='<td><span class="badge badge-blue">'+(r.lodge||'Unknown')+'</span></td>'+
       '<td><strong>'+fmtDate(r.week_of)+'</strong></td>'+
       '<td>'+fmtDT(r.submitted_at)+'</td>'+
@@ -1623,6 +1621,8 @@ async function loadDashboard(){
         '<span class="badge badge-green">Active</span>')+
         (checkDuplicate(rows,r)?'<span class="badge badge-red" style="margin-left:4px">Duplicate</span>':'')+
       '</td>';
+    openBtn.onclick=()=>r.is_draft?openDraft(r):openReport(r);
+    openBtn.onclick=()=>r.is_draft?openDraft(r):openReport(r);
     const viewTd=document.createElement('td');viewTd.appendChild(openBtn);tr.appendChild(viewTd);
     if(isAdmin()){
       const archBtn=document.createElement('button');
