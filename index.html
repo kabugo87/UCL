@@ -429,19 +429,46 @@ function isAdmin(){return currentUser&&currentUser.email===ADMIN_EMAIL;}
 
 // ── ITEM MASTER ───────────────────────────────────────────────────────────────
 async function loadItemMaster(){
-  // Load both All Lodges items and lodge-specific items
+  // Load All Lodges items plus lodge-specific items
+  const lodges=['All Lodges'];
+  if(currentLodge&&currentLodge!=='All Lodges') lodges.push(currentLodge);
   const {data,error}=await sb.from('item_master')
     .select('*')
     .eq('active',true)
-    .in('lodge',['All Lodges', currentLodge||'All Lodges'])
-    .order('category').order('grp').order('item_name');
-  if(!error&&data){itemMaster=data;}
+    .in('lodge',lodges)
+    .order('lodge').order('category').order('grp').order('item_name');
+  if(!error&&data){
+    itemMaster=data;
+    console.log('Item master loaded:',data.length,'items for',lodges);
+  }
+}
+
+function getEffectiveCategory(tabCategory){
+  // For lodge-specific items, map tab category to item master category
+  // If lodge has specific items for that category, use them; else fall back to All Lodges
+  if(!currentLodge||currentLodge==='All Lodges') return tabCategory;
+  // Check if lodge has items for this category
+  const lodgeItems=itemMaster.filter(i=>i.lodge===currentLodge&&i.category===tabCategory);
+  if(lodgeItems.length>0) return tabCategory; // lodge has items
+  return tabCategory; // always return same category, both sources merged
 }
 
 function getGroups(category){
-  return[...new Set(itemMaster.filter(i=>i.category===category).map(i=>i.grp))];
+  // If lodge has specific items for this category, show ONLY lodge-specific groups
+  if(currentLodge&&currentLodge!=='All Lodges'){
+    const lodgeGroups=itemMaster.filter(i=>i.lodge===currentLodge&&i.category===category).map(i=>i.grp);
+    if(lodgeGroups.length>0) return [...new Set(lodgeGroups)];
+  }
+  // Fall back to All Lodges items
+  return [...new Set(itemMaster.filter(i=>i.category===category).map(i=>i.grp))];
 }
 function getItems(category,grp){
+  // If lodge has specific items for this category+group, show ONLY lodge-specific items
+  if(currentLodge&&currentLodge!=='All Lodges'){
+    const lodgeItems=itemMaster.filter(i=>i.lodge===currentLodge&&i.category===category&&i.grp===grp);
+    if(lodgeItems.length>0) return lodgeItems;
+  }
+  // Fall back to All Lodges items
   return itemMaster.filter(i=>i.category===category&&i.grp===grp);
 }
 
@@ -637,7 +664,10 @@ function buildRow(tr,name){
       tdEl(makeInp('text','Remarks'),'wide'),
       delTd
     );
-    wireDropdowns(groupTd,itemTd,unitInp,null,'Bar');
+    // Use 'Bar Sales' category for lodge-specific items, 'Bar' for generic
+    const barSalesCat=(currentLodge&&currentLodge!=='All Lodges'&&
+      itemMaster.some(i=>i.lodge===currentLodge&&i.category==='Bar Sales'))?'Bar Sales':'Bar';
+    wireDropdowns(groupTd,itemTd,unitInp,null,barSalesCat);
 
   } else if(name==='bar-stock'){
     // Fields: group | item | unit | par | cost | opening | received | issued | exp | actual | variance | par-status | val-open | val-issued | val-close | val-var
