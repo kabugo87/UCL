@@ -277,6 +277,7 @@ header{background:var(--forest);padding:0 32px;height:60px;display:flex;align-it
           <button onclick="generateConsolidated()" style="padding:8px 18px;background:var(--forest);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📊 Consolidated Report</button>
           <span id="monthly-btn-wrap" style="display:none">
             <select id="monthly-month" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;margin-left:8px;">
+              <option value="2026-04">April 2026</option>
               <option value="2026-05">May 2026</option>
               <option value="2026-06">June 2026</option>
               <option value="2026-07">July 2026</option>
@@ -514,6 +515,7 @@ header{background:var(--forest);padding:0 32px;height:60px;display:flex;align-it
           <button onclick="generateConsolidated()" style="padding:8px 18px;background:var(--forest);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📊 Consolidated Report</button>
           <span id="monthly-btn-wrap" style="display:none">
             <select id="monthly-month" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;margin-left:8px;">
+              <option value="2026-04">April 2026</option>
               <option value="2026-05">May 2026</option>
               <option value="2026-06">June 2026</option>
               <option value="2026-07">July 2026</option>
@@ -1586,7 +1588,7 @@ async function loadDashboard(){
   else query=query.eq('archived',false).eq('is_draft',false).eq('lodge',currentDashTab);
   const {data}=await query;const rows=data||[];
 
-  const aRes=await sb.from('weekly_reports').select('id,lodge,bar_sales,restaurant_sales,room_sales',{count:'exact'}).eq('archived',false);
+  const aRes=await sb.from('weekly_reports').select('id,lodge,bar_sales,restaurant_sales,room_sales',{count:'exact'}).eq('archived',false).eq('is_draft',false);
   const allActive=aRes.data||[];
   let totalRev=0;
   allActive.forEach(r=>{
@@ -3324,7 +3326,7 @@ async function loadDashboard(){
   else query=query.eq('archived',false).eq('is_draft',false).eq('lodge',currentDashTab);
   const {data}=await query;const rows=data||[];
 
-  const aRes=await sb.from('weekly_reports').select('id,lodge,bar_sales,restaurant_sales,room_sales',{count:'exact'}).eq('archived',false);
+  const aRes=await sb.from('weekly_reports').select('id,lodge,bar_sales,restaurant_sales,room_sales',{count:'exact'}).eq('archived',false).eq('is_draft',false);
   const allActive=aRes.data||[];
   let totalRev=0;
   allActive.forEach(r=>{
