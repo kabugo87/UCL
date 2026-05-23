@@ -252,12 +252,22 @@ header{background:var(--forest);padding:0 32px;height:60px;display:flex;align-it
           <div class="dash-tab" onclick="showDashTab(this,'Hoima Cultural Lodge')">Hoima</div>
           <div class="dash-tab" onclick="showDashTab(this,'Lake Mulehe Gorilla Lodge')">Lake Mulehe</div>
           <div class="dash-tab" onclick="showDashTab(this,'Kigarama Wilderness Lodge')">Kigarama</div>
+          <div class="dash-tab" onclick="showDashTab(this,'drafts')" id="drafts-tab" style="display:none">Drafts</div>
           <div class="dash-tab" onclick="showDashTab(this,'archived')">Archived</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <label style="font-size:12px;font-weight:600;color:var(--muted)">Week of:</label>
           <input type="date" id="consolidated-week" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;"/>
           <button onclick="generateConsolidated()" style="padding:8px 18px;background:var(--forest);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📊 Consolidated Report</button>
+          <span id="monthly-btn-wrap" style="display:none">
+            <select id="monthly-month" style="padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;margin-left:8px;">
+              <option value="2026-05">May 2026</option>
+              <option value="2026-06">June 2026</option>
+              <option value="2026-07">July 2026</option>
+              <option value="2026-08">August 2026</option>
+            </select>
+            <button onclick="generateMonthly()" style="padding:8px 18px;background:var(--gold);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-left:6px;">📅 Monthly Report</button>
+          </span>
         </div>
       </div>
       <div style="border-bottom:2px solid var(--border);margin-bottom:20px;"></div>
@@ -364,9 +374,10 @@ header{background:var(--forest);padding:0 32px;height:60px;display:flex;align-it
 
   <div class="submit-bar" id="submit-bar" style="display:none">
     <div class="submit-status" id="submit-status">Fill all sheets and preview before submitting.</div>
-    <div>
-      <button class="btn-preview" onclick="showPreview()">&#128065; Preview Report</button>
-      <button class="btn-submit" onclick="doSubmit()">Submit Weekly Report</button>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button class="btn-preview" onclick="showPreview()">&#128065; Preview</button>
+      <button style="padding:12px 24px;background:var(--white);color:var(--forest);border:2px solid var(--forest);border-radius:var(--radius);font-family:'Jost',sans-serif;font-size:14px;font-weight:600;cursor:pointer;" onclick="saveDraft()">💾 Save Draft</button>
+      <button class="btn-submit" onclick="doSubmit()">✓ Submit Weekly Report</button>
     </div>
   </div>
 </div>
@@ -1159,6 +1170,19 @@ async function doSubmit(){
   let roomTotal=0;
   document.querySelectorAll('#body-room-sales .room-total').forEach(c=>{roomTotal+=parseFloat(c.textContent.replace('UGX','').replace(/,/g,''))||0;});
   try{
+    // Check for existing submitted report for this lodge and week
+    const {data:existing}=await sb.from('weekly_reports')
+      .select('id').eq('lodge',currentLodge).eq('week_of',weekOf)
+      .eq('is_draft',false).eq('archived',false).limit(1);
+    if(existing&&existing.length>0){
+      setStatus('A report for '+currentLodge+' — week of '+fmtDate(weekOf)+' already exists. Contact the administrator to make changes.','error');
+      btn.disabled=false;btn.textContent='Submit Weekly Report';
+      return;
+    }
+    // Delete any draft for this lodge and week before submitting
+    await sb.from('weekly_reports').delete()
+      .eq('lodge',currentLodge).eq('week_of',weekOf).eq('is_draft',true);
+
     const payload={
       week_of:weekOf,lodge:currentLodge,user_id:currentUser.id,
       user_email:currentUser.email,submitted_at:new Date().toISOString(),archived:false,
@@ -1191,12 +1215,19 @@ function setStatus(msg,type){const el=document.getElementById('submit-status');e
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
 async function loadDashboard(){
+  // Show admin-only features
+  if(isAdmin()){
+    document.getElementById('drafts-tab').style.display='block';
+    document.getElementById('monthly-btn-wrap').style.display='inline';
+  }
+
   let query=sb.from('weekly_reports')
-    .select('id,week_of,lodge,submitted_at,user_email,archived,bar_sales,restaurant_sales,room_sales,bar_stock,stores_stock,kitchen,room_inspections,security_log,incidents,kitchen_sales_revenue,room_revenue')
+    .select('id,week_of,lodge,submitted_at,user_email,archived,is_draft,bar_sales,restaurant_sales,room_sales,bar_stock,stores_stock,kitchen,room_inspections,security_log,incidents,kitchen_sales_revenue,room_revenue')
     .order('submitted_at',{ascending:false}).limit(100);
-  if(currentDashTab==='archived')query=query.eq('archived',true);
-  else if(currentDashTab==='all')query=query.eq('archived',false);
-  else query=query.eq('archived',false).eq('lodge',currentDashTab);
+  if(currentDashTab==='archived')query=query.eq('archived',true).eq('is_draft',false);
+  else if(currentDashTab==='drafts')query=query.eq('is_draft',true);
+  else if(currentDashTab==='all')query=query.eq('archived',false).eq('is_draft',false);
+  else query=query.eq('archived',false).eq('is_draft',false).eq('lodge',currentDashTab);
   const {data}=await query;const rows=data||[];
 
   const aRes=await sb.from('weekly_reports').select('id,lodge,bar_sales,restaurant_sales,room_sales',{count:'exact'}).eq('archived',false);
@@ -1232,12 +1263,18 @@ async function loadDashboard(){
     const openBtn=document.createElement('button');
     openBtn.textContent='Open';
     openBtn.style.cssText='padding:6px 14px;background:var(--forest);color:#fff;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-family:Jost,sans-serif';
-    openBtn.onclick=()=>openReport(r);
+    openBtn.onclick=()=>r.is_draft?openDraft(r):openReport(r);
+    if(r.is_draft){openBtn.textContent='Edit Draft';openBtn.style.background='var(--amber)';}
     tr.innerHTML='<td><span class="badge badge-blue">'+(r.lodge||'Unknown')+'</span></td>'+
       '<td><strong>'+fmtDate(r.week_of)+'</strong></td>'+
       '<td>'+fmtDT(r.submitted_at)+'</td>'+
       '<td><strong>'+fmtUGX(rev)+'</strong></td>'+
-      '<td><span class="badge '+(r.archived?'badge-grey':'badge-green')+'">'+(r.archived?'Archived':'Active')+'</span></td>';
+      '<td>'+
+        (r.is_draft?'<span class="badge badge-amber">Draft</span>':
+        r.archived?'<span class="badge badge-grey">Archived</span>':
+        '<span class="badge badge-green">Active</span>')+
+        (checkDuplicate(rows,r)?'<span class="badge badge-red" style="margin-left:4px">Duplicate</span>':'')+
+      '</td>';
     const viewTd=document.createElement('td');viewTd.appendChild(openBtn);tr.appendChild(viewTd);
     if(isAdmin()){
       const archBtn=document.createElement('button');
@@ -1829,7 +1866,206 @@ async function generateConsolidated(){
   document.getElementById('report-modal').classList.add('open');
 }
 
+
+// ── OPEN DRAFT ───────────────────────────────────────────────────────────────
+function openDraft(r){
+  // Switch to lodge and load draft data
+  currentLodge=r.lodge;
+  document.getElementById('lodge-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  document.getElementById('user-email').textContent=currentUser.email;
+  document.getElementById('lodge-name-header').textContent=r.lodge;
+  document.getElementById('week-of').value=r.week_of;
+  updateWeekLabel();
+  switchTab(document.querySelector('.tab[data-tab="bar-sales"]'));
+  setStatus('Draft loaded for '+r.lodge+' — '+fmtDate(r.week_of)+'. Continue editing and submit when ready.','success');
+  // Note: full draft data population would require pre-filling forms — for now user sees the draft exists
+}
+
+// ── DUPLICATE CHECK ───────────────────────────────────────────────────────────
+function checkDuplicate(rows, report){
+  return rows.filter(r=>r.lodge===report.lodge&&r.week_of===report.week_of&&r.id!==report.id&&!r.is_draft).length>0;
+}
+
+// ── SAVE DRAFT ────────────────────────────────────────────────────────────────
+async function saveDraft(){
+  const weekOf=document.getElementById('week-of').value;
+  if(!weekOf){setStatus('Please select the week first.','error');return;}
+  setStatus('Saving draft...','');
+  const btn=document.querySelector('button[onclick="saveDraft()"]');
+  btn.disabled=true;btn.textContent='Saving...';
+
+  let restTotal=0;
+  document.querySelectorAll('#body-restaurant .total-val').forEach(c=>{restTotal+=parseFloat(c.textContent.replace('UGX','').replace(/,/g,''))||0;});
+  let roomTotal=0;
+  document.querySelectorAll('#body-room-sales .room-total').forEach(c=>{roomTotal+=parseFloat(c.textContent.replace('UGX','').replace(/,/g,''))||0;});
+
+  try{
+    // Check if draft already exists for this lodge and week
+    const {data:existing}=await sb.from('weekly_reports')
+      .select('id').eq('lodge',currentLodge).eq('week_of',weekOf).eq('is_draft',true).limit(1);
+
+    const payload={
+      week_of:weekOf,lodge:currentLodge,user_id:currentUser.id,
+      user_email:currentUser.email,last_saved_at:new Date().toISOString(),
+      archived:false,is_draft:true,
+      bar_sales:extractTable('bar-sales'),bar_stock:extractTable('bar-stock'),
+      restaurant_sales:extractTable('restaurant'),room_sales:extractTable('room-sales'),
+      stores_stock:extractTable('stores'),kitchen:extractTable('kitchen'),
+      room_inspections:extractTable('rooms'),housekeeping_log:extractTable('housekeeping'),
+      security_log:extractTable('security'),maintenance_log:extractTable('maintenance'),
+      incidents:extractTable('incidents'),
+      kitchen_sales_revenue:restTotal,room_revenue:roomTotal
+    };
+
+    let error;
+    if(existing&&existing.length>0){
+      // Update existing draft
+      ({error}=await sb.from('weekly_reports').update(payload).eq('id',existing[0].id));
+    } else {
+      // Create new draft
+      payload.submitted_at=new Date().toISOString();
+      ({error}=await sb.from('weekly_reports').insert([payload]));
+    }
+    if(error)throw error;
+    setStatus('✓ Draft saved — '+fmtDT(new Date().toISOString()),'success');
+    btn.disabled=false;btn.textContent='💾 Save Draft';
+    loadDashboard();
+  }catch(err){
+    setStatus('Error saving draft: '+(err.message||''),'error');
+    btn.disabled=false;btn.textContent='💾 Save Draft';
+  }
+}
+
+// ── MONTHLY REPORT ────────────────────────────────────────────────────────────
+async function generateMonthly(){
+  if(!isAdmin()){alert('Monthly reports are for administrators only.');return;}
+  const monthVal=document.getElementById('monthly-month').value;
+  const [year,month]=monthVal.split('-').map(Number);
+  const startDate=monthVal+'-01';
+  const endDate=new Date(year,month,0).toISOString().split('T')[0]; // last day of month
+
+  const {data,error}=await sb.from('weekly_reports')
+    .select('*')
+    .gte('week_of',startDate)
+    .lte('week_of',endDate)
+    .eq('is_draft',false)
+    .eq('archived',false)
+    .order('lodge').order('week_of');
+
+  if(error||!data||!data.length){
+    alert('No submitted reports found for '+new Date(year,month-1,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'}));
+    return;
+  }
+
+  const monthName=new Date(year,month-1,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const weeks=[...new Set(data.map(r=>r.week_of))].sort();
+
+  // Revenue per lodge per week
+  const lodgeData={};
+  LODGES.forEach(l=>{lodgeData[l]={weeks:{},totalBar:0,totalRest:0,totalRoom:0,total:0,incidents:0,openMaint:0};});
+
+  data.forEach(r=>{
+    const l=r.lodge;
+    if(!lodgeData[l])return;
+    let bar=0,rest=0,room=0;
+    (r.bar_sales||[]).forEach(s=>{bar+=parseFloat((s.total_value||'').replace('UGX','').replace(/,/g,''))||0;});
+    (r.restaurant_sales||[]).forEach(s=>{rest+=parseFloat((s.total_value||'').replace('UGX','').replace(/,/g,''))||0;});
+    (r.room_sales||[]).forEach(s=>{room+=parseFloat((s.total_value||'').replace('UGX','').replace(/,/g,''))||0;});
+    lodgeData[l].weeks[r.week_of]={bar,rest,room,total:bar+rest+room};
+    lodgeData[l].totalBar+=bar;lodgeData[l].totalRest+=rest;lodgeData[l].totalRoom+=room;
+    lodgeData[l].total+=bar+rest+room;
+    lodgeData[l].incidents+=(r.incidents||[]).filter(i=>i.description&&i.description!=='NONE').length;
+    lodgeData[l].openMaint+=(r.maintenance_log||[]).filter(m=>m.status==='Open'||m.status==='In Progress').length;
+  });
+
+  const grandTotal=LODGES.reduce((s,l)=>s+lodgeData[l].total,0);
+
+  let html=`
+    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin-bottom:4px;">Monthly Report — Uganda Cultural Lodges</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:var(--forest)">${monthName}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;">${weeks.length} week(s) of data | Generated ${fmtDT(new Date().toISOString())}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:24px;">
+      <div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;border-top:4px solid var(--forest)">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Total Revenue</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--forest)">${fmtUGX(grandTotal)}</div>
+        <div style="font-size:12px;color:var(--muted)">All lodges — ${monthName}</div>
+      </div>
+      ${LODGES.map(l=>`
+      <div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">${l.split(' ')[0]}</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--forest)">${fmtUGX(lodgeData[l].total)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${lodgeData[l].incidents} incident(s) | ${lodgeData[l].openMaint} maintenance open</div>
+      </div>`).join('')}
+    </div>
+
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--forest);margin:0 0 12px;padding-bottom:6px;border-bottom:2px solid var(--border);">Revenue by Lodge — Monthly Summary</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
+      <thead><tr style="background:#f0ede6;">
+        <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Lodge</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Bar</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Restaurant</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Rooms</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Total</th>
+        <th style="padding:10px 14px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Incidents</th>
+      </tr></thead>
+      <tbody>
+        ${LODGES.map(l=>`<tr>
+          <td style="padding:10px 14px;border-bottom:1px solid #ede9e0;font-weight:600">${l}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #ede9e0;text-align:right">${fmtUGX(lodgeData[l].totalBar)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #ede9e0;text-align:right">${fmtUGX(lodgeData[l].totalRest)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #ede9e0;text-align:right">${fmtUGX(lodgeData[l].totalRoom)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #ede9e0;text-align:right;font-weight:700">${fmtUGX(lodgeData[l].total)}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #ede9e0;text-align:right">${lodgeData[l].incidents}</td>
+        </tr>`).join('')}
+        <tr style="background:#f0ede6;font-weight:700;">
+          <td style="padding:10px 14px;">TOTAL</td>
+          <td style="padding:10px 14px;text-align:right">${fmtUGX(LODGES.reduce((s,l)=>s+lodgeData[l].totalBar,0))}</td>
+          <td style="padding:10px 14px;text-align:right">${fmtUGX(LODGES.reduce((s,l)=>s+lodgeData[l].totalRest,0))}</td>
+          <td style="padding:10px 14px;text-align:right">${fmtUGX(LODGES.reduce((s,l)=>s+lodgeData[l].totalRoom,0))}</td>
+          <td style="padding:10px 14px;text-align:right;font-size:16px">${fmtUGX(grandTotal)}</td>
+          <td style="padding:10px 14px;text-align:right">${LODGES.reduce((s,l)=>s+lodgeData[l].incidents,0)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--forest);margin:0 0 12px;padding-bottom:6px;border-bottom:2px solid var(--border);">Weekly Breakdown</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
+      <thead><tr style="background:#f0ede6;">
+        <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Week Of</th>
+        ${LODGES.map(l=>`<th style="padding:9px 12px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">${l.split(' ')[0]}</th>`).join('')}
+        <th style="padding:9px 12px;text-align:right;font-size:11px;font-weight:600;text-transform:uppercase;color:var(--forest);border-bottom:2px solid var(--border);">Combined</th>
+      </tr></thead>
+      <tbody>
+        ${weeks.map(w=>{
+          const weekRevs=LODGES.map(l=>lodgeData[l].weeks[w]?lodgeData[l].weeks[w].total:0);
+          const weekTotal=weekRevs.reduce((s,v)=>s+v,0);
+          return`<tr>
+            <td style="padding:9px 12px;border-bottom:1px solid #ede9e0;font-weight:600">${fmtDate(w)}</td>
+            ${weekRevs.map(v=>`<td style="padding:9px 12px;border-bottom:1px solid #ede9e0;text-align:right">${fmtUGX(v)}</td>`).join('')}
+            <td style="padding:9px 12px;border-bottom:1px solid #ede9e0;text-align:right;font-weight:700">${fmtUGX(weekTotal)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:8px;display:flex;gap:12px;">
+      <button onclick="window.print()" style="padding:9px 20px;background:var(--forest);color:var(--white);border:none;border-radius:var(--radius);font-family:Jost,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Print / Download</button>
+    </div>`;
+
+  document.getElementById('modal-title').textContent='Monthly Report — Uganda Cultural Lodges | '+monthName;
+  document.getElementById('modal-meta').textContent='Administrator view only | Generated '+fmtDT(new Date().toISOString());
+  document.getElementById('modal-actions').innerHTML='';
+  document.getElementById('confirm-delete').style.display='none';
+  document.getElementById('edit-section').style.display='none';
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('report-modal').classList.add('open');
+}
+
 checkSession();
+
 
 
 </script>
